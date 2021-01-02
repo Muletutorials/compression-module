@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule
+	xmlns:compression="http://www.mulesoft.org/schema/mule/compression"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/compression http://www.mulesoft.org/schema/mule/compression/current/mule-compression.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd">
+	<flow name="compressFlow">
+		<http:listener doc:name="Listener"
+			config-ref="HTTP_Listener_config:8081" path="/compress" />
+		<file:read doc:name="Read" config-ref="File_Config"
+			path="ojdbc8-19.3.0.0.jar" />
+		<compression:compress doc:name="Compress">
+			<compression:compressor>
+				<compression:zip-compressor />
+			</compression:compressor>
+		</compression:compress>
+		<file:write doc:name="Write" config-ref="File_Config"
+			path="ojdbc8.zip" />
+		<logger level="INFO" doc:name="Logger"
+			message='Compression Complete' />
+		<file:read doc:name="Read" config-ref="File_Config"
+			path="ojdbc8.zip" />
+		<compression:decompress doc:name="Decompress">
+			<compression:decompressor>
+				<compression:zip-decompressor />
+			</compression:decompressor>
+		</compression:decompress>
+		<file:write doc:name="Write" config-ref="File_Config"
+			path="ojdbc8-zip.jar" />
+		<logger level="INFO" doc:name="Logger"
+			message="Decompression Complete" />
+		<set-payload value="Compression/Decompression Complete"
+			doc:name="Set Payload" />
+	</flow>
+</mule>

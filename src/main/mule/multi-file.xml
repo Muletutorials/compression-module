@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule
+	xmlns:compression="http://www.mulesoft.org/schema/mule/compression"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/compression http://www.mulesoft.org/schema/mule/compression/current/mule-compression.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd">
+	<flow name="extractFlow">
+		<http:listener doc:name="Listener"
+			config-ref="HTTP_Listener_config:8081" path="/extract" />
+		<file:read doc:name="Read" config-ref="File_Config"
+			path="apache-tomcat-8.5.54-windows-x64.zip" />
+		<compression:extract doc:name="Extract">
+			<compression:extractor>
+				<compression:zip-extractor />
+			</compression:extractor>
+		</compression:extract>
+		<foreach doc:name="For Each"
+			collection="#[dw::core::Objects::entrySet(payload)]">
+			<choice doc:name="Choice">
+				<when
+					expression='#[(payload[0] endsWith  "/") as Boolean == false]'>
+					<logger level="INFO" doc:name="Logger"
+						message='#["Writing " ++ payload[0]]' />
+					<file:write doc:name="Write" config-ref="File_Config"
+						path="#[payload[0]]">
+						<file:content><![CDATA[#[payload[1]]]]></file:content>
+					</file:write>
+				</when>
+				<otherwise>
+					<try doc:name="Try">
+						<file:create-directory
+							doc:name="Create directory" config-ref="File_Config"
+							directoryPath="#[payload[0]]" />
+						<error-handler>
+							<on-error-continue enableNotifications="true"
+								logException="false" doc:name="On Error Continue"
+								type="FILE:FILE_ALREADY_EXISTS">
+								<logger level="INFO" doc:name="Logger"
+									message="#[&quot;Directory='&quot; ++ payload[0] ++ &quot;' Already Exists, skipping&quot;]" />
+							</on-error-continue>
+						</error-handler>
+					</try>
+				</otherwise>
+			</choice>
+		</foreach>
+		<set-payload
+			value='#[output application/json --- "Extraction Complete"]'
+			doc:name="Set Payload" />
+	</flow>
+	<flow name="archiveFlow">
+		<http:listener doc:name="Listener"
+			config-ref="HTTP_Listener_config:8081" path="/archive" />
+		<file:list doc:name="List" config-ref="File_Config"
+			directoryPath="archiveIt" recursive="true" />
+		<ee:transform doc:name="Transform Message">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{(payload map (item, index) -> {
+	(item.attributes.path): item.payload
+})}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<compression:archive doc:name="Archive">
+			<compression:archiver>
+				<compression:zip-archiver />
+			</compression:archiver>
+		</compression:archive>
+		<file:write doc:name="Write" config-ref="File_Config"
+			path="archive.zip" />
+		<set-payload
+			value='#[output application/json --- "Archive Complete"]'
+			doc:name="Set Payload" />
+	</flow>
+</mule>
